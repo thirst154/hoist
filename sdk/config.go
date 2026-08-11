@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -26,8 +28,62 @@ func defaults() Config {
 }
 
 func loadConfig() (Config, error) {
-	// Main entry point. Calls the other functions
-	return Config{}, nil
+	cfg := defaults()
+
+	cfg = applyEnvVars(cfg)
+
+	hoistJSON, err := loadJSONFile("hoist.json")
+	if err != nil {
+		return Config{}, fmt.Errorf("failed to load hoist.json: %w", err)
+	}
+	cfg = mergeConfigs(cfg, hoistJSON)
+
+	localJSON, err := loadJSONFile(".hoist.local.json")
+	if err != nil {
+		return Config{}, fmt.Errorf("failed to load .hoist.local.json: %w", err)
+	}
+	cfg = mergeConfigs(cfg, localJSON)
+
+	err = validateConfig(cfg)
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func applyEnvVars(cfg Config) Config {
+	if v := os.Getenv("HOIST_APP_NAME"); v != "" {
+		cfg.AppName = v
+	}
+
+	if v := os.Getenv("HOIST_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Port = port
+		}
+	}
+
+	if v := os.Getenv("HOIST_LOG_LEVEL"); v != "" {
+		cfg.LogLevel = v
+	}
+
+	if v := os.Getenv("HOIST_LOG_FORMAT"); v != "" {
+		cfg.LogFormat = v
+	}
+
+	if v := os.Getenv("HOIST_METRICS_ENABLED"); v != "" {
+		if v == "false" {
+			cfg.MetricsEnabled = false
+		} else if v == "true" {
+			cfg.MetricsEnabled = true
+		}
+	}
+
+	if v := os.Getenv("HOIST_HEALTH_PATH"); v != "" {
+		cfg.HealthPath = v
+	}
+
+	return cfg
 }
 
 func loadJSONFile(path string) (Config, error) {
@@ -49,11 +105,50 @@ func loadJSONFile(path string) (Config, error) {
 }
 
 func mergeConfigs(base, override Config) Config {
-	// Merges two configs, with the second one overriding the first one.
-	return Config{}
+	result := base
+
+	if override.AppName != "" {
+		result.AppName = override.AppName
+	}
+	if override.Port != 0 {
+		result.Port = override.Port
+	}
+	if override.LogLevel != "" {
+		result.LogLevel = override.LogLevel
+	}
+	if override.LogFormat != "" {
+		result.LogFormat = override.LogFormat
+	}
+	if override.MetricsEnabled {
+		result.MetricsEnabled = override.MetricsEnabled
+	}
+	if override.HealthPath != "" {
+		result.HealthPath = override.HealthPath
+	}
+
+	return result
 }
 
 func validateConfig(cfg Config) error {
-	// Validates the config. Returns an error if invalid.
+	if cfg.AppName == "" {
+		return fmt.Errorf("app_name cannot be empty")
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return fmt.Errorf("port must be between 1 and 65535, got %d", cfg.Port)
+	}
+	validLogLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+	if !validLogLevels[cfg.LogLevel] {
+		return fmt.Errorf("log_level must be one of: debug, info, warn, error, got '%s'", cfg.LogLevel)
+	}
+	validLogFormats := map[string]bool{"json": true, "text": true}
+	if !validLogFormats[cfg.LogFormat] {
+		return fmt.Errorf("log_format must be one of: json, text, got '%s'", cfg.LogFormat)
+	}
+	if cfg.HealthPath == "" {
+		return fmt.Errorf("health_path cannot be empty")
+	}
+	if cfg.HealthPath[0] != '/' {
+		return fmt.Errorf("health_path must start with '/', got '%s'", cfg.HealthPath)
+	}
 	return nil
 }
