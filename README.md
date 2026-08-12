@@ -10,9 +10,10 @@ Write your API locally, type `hoist deploy`, and watch your code go live on your
 
 *   **Zero Configuration**: No Dockerfiles, YAML pipelines, or infrastructure manifests required.
 *   **Instant Scaffolding**: Spin up standard Go API architectures in seconds.
-*   **Native Cross-Compilation**: Code is compiled locally into a static Linux binary and streamed directly to your server.
-*   **Self-Hosted Control Plane**: Total control over your own hardware using a lightweight systemd/Caddy orchestration layer.
-*   **Zero-Downtime Deployments**: Traffic is atomically flipped between versions using green-blue process swapping.
+*   **Git-Based Deploys**: Push your source code, we build and deploy it. Server-side builds ensure security and reproducibility.
+*   **Container Isolation**: Each app runs in its own Docker container with resource limits and network isolation.
+*   **Self-Hosted Ready**: Run the entire platform on your own servers with full control.
+*   **Zero-Downtime Deployments**: Traffic is atomically flipped between versions using blue-green container swapping.
 
 ---
 
@@ -20,9 +21,53 @@ Write your API locally, type `hoist deploy`, and watch your code go live on your
 
 `hoist` breaks down into three simple components:
 
-1.  **The CLI (`hoist`)**: Installed on your local machine. It manages code generation, multi-platform compilation (`GOOS=linux`), packaging, and transport.
+1.  **The CLI (`hoist`)**: Installed on your local machine. It manages code generation, local development, and deploys your source code via git push.
 2.  **The SDK (`hoist/sdk`)**: A lightweight wrapper runtime package embedded in your API that handles standardized environment variable processing, logging, and performance metrics out-of-the-box.
-3.  **The Control Plane Daemon**: A lightweight service running on your target server. It accepts binary payloads via an authenticated HTTP API, manages application life-cycles through `systemd`, and reloads `Caddy` reverse-proxy paths dynamically.
+3.  **The Control Plane Daemon**: A service running on your target server. It receives git pushes, builds your app in isolated containers, manages application lifecycle through Docker, and reloads `Caddy` reverse-proxy paths dynamically.
+
+## 🚀 Deploy Flow
+
+```
+User runs `hoist deploy`
+  ↓
+CLI pushes source to git@deploy.hoist.dev:<app-name>.git
+  ↓
+Server receives push (git hook triggers build)
+  ↓
+Build container (sandboxed):
+  - Clones repository
+  - Uses canonical SDK (baked into build image)
+  - Compiles Go binary
+  - Scans dependencies
+  ↓
+App container (Docker):
+  - Receives compiled binary
+  - Starts with resource limits (CPU, memory)
+  - Polls /healthz until healthy
+  ↓
+Caddy swaps routing to new container
+  ↓
+Old container gracefully shuts down
+```
+
+## 🔒 Security Model
+
+**Multi-tenant safety:**
+- Docker isolation prevents apps from accessing each other
+- Resource limits prevent denial-of-service
+- Network policies prevent lateral movement
+- Server-side builds prevent malicious binaries
+
+**SDK integrity:**
+- SDK stays public (good for community and self-hosted users)
+- Build environment uses canonical SDK (baked into build image)
+- Users can't swap in modified SDK because they don't control the build
+
+**Abuse prevention:**
+- Rate limiting on git pushes
+- Resource quotas per user
+- Dependency scanning
+- Optional source code review for suspicious patterns
 
 ---
 
@@ -69,23 +114,29 @@ Config precedence: `defaults → env vars → hoist.json → .hoist.local.json`
 
 ## 🗺️ Roadmap
 
-### Phase 1: Foundation
-- **SDK (`hoist/sdk`)**: Build the Go module first. Env var processing, structured logging, metrics hooks. This is the contract everything else depends on.
-- **Control Plane Daemon**: The server-side agent. Authenticated HTTP receiver, systemd unit management, Caddy config reloading. Get a manual deploy working end-to-end before automating anything.
+### Phase 1: Foundation (Done)
+- **SDK (`hoist/sdk`)**: Complete with 126 tests. Config loading, structured logging, Prometheus metrics, health checks, middleware, and graceful shutdown.
 
-### Phase 2: CLI Core
-- **Cross-compilation pipeline**: `GOOS=linux` static builds, binary packaging and streaming to the daemon.
-- **`hoist deploy`**: Wire CLI to daemon. Single-command deploy with manual binary push.
-- **Routing**: Auto-generate Caddy reverse-proxy config based on app metadata.
+### Phase 2: Docker-based Daemon
+- **Git server**: Receive source code via git push, trigger builds on push.
+- **Build system**: Build in isolated Docker container, use canonical SDK, scan dependencies.
+- **Container lifecycle**: Manage Docker containers, resource limits, health check polling, log streaming.
+- **Zero-downtime deploys**: Blue-green container swapping, atomic traffic flip via Caddy.
 
-### Phase 3: Developer Experience
-- **`hoist init` / scaffolding**: Template-based project generation (standard Go API architectures).
-- **Zero-downtime deploys**: Green-blue process swapping in the daemon, atomic traffic flip.
-- **TLS provisioning**: Automatic cert management via Caddy.
+### Phase 3: CLI
+- **`hoist init` / scaffolding**: Template-based project generation.
+- **Git-based deploy**: `hoist deploy` pushes source to server, triggers build.
+- **`hoist logs`**: Stream logs from running containers.
+- **`hoist status`**: Check app health and deployment status.
 
-### Phase 4: Hardening and Polish
-- **Auth and security**: Harden daemon auth (mTLS, token rotation).
-- **Multi-app and multi-env support**: Manage several apps or staging/prod on one server.
-- **Observability**: Health checks, basic dashboard or `hoist status` command.
-- **Documentation and examples**: Real-world sample apps, deployment guides.
+### Phase 4: Production Hardening
+- **Auth and security**: Multi-user auth, rate limiting, resource quotas.
+- **Observability**: Dashboard, metrics aggregation, alerting.
+- **Dependency scanning**: Automated vulnerability detection.
+- **Optional gVisor upgrade**: Stronger syscall isolation for higher-security needs.
+
+### Phase 5: Self-Hosted
+- **Self-hosted documentation**: Guides for running the platform on your own servers.
+- **Daemon configuration**: Custom endpoints, TLS, storage backends.
+- **CLI support**: Connect to custom daemon endpoints instead of hosted platform.
 
