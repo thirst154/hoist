@@ -1,0 +1,8 @@
+{
+  "app_name": "basic-api",
+  "port": 8080,
+  "log_level": "info",
+  "log_format": "json",
+  "metrics_enabled": true,
+  "health_path": "/healthz"
+}
