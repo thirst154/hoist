@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -39,7 +41,7 @@ func setupLogger(cfg Config) (*zap.Logger, error) {
 
 	core := zapcore.NewCore(
 		encoder,
-		zapcore.AddSync(zapcore.Lock(zapcore.AddSync(nil))),
+		zapcore.AddSync(os.Stdout),
 		level,
 	)
 
