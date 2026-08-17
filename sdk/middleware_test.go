@@ -688,6 +688,79 @@ func TestRequestIDMiddleware_EmptyID(t *testing.T) {
 	}
 }
 
+func TestWrapHandler_PanicRecordsStatus500(t *testing.T) {
+	logger = nil
+	initLogger(Config{LogLevel: "info", LogFormat: "json"})
+	metrics = nil
+	initMetrics(Config{MetricsEnabled: true})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("test panic")
+	})
+
+	cfg := Config{
+		AppName:        "test-app",
+		LogLevel:       "info",
+		LogFormat:      "json",
+		MetricsEnabled: true,
+	}
+
+	wrapped := wrapHandler(handler, cfg)
+	req := httptest.NewRequest("GET", "/panic", nil)
+	w := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", w.Code)
+	}
+
+	metricsReq := httptest.NewRequest("GET", "/metrics", nil)
+	metricsW := httptest.NewRecorder()
+	metrics.Handler().ServeHTTP(metricsW, metricsReq)
+
+	body := metricsW.Body.String()
+	if !strings.Contains(body, `http_requests_total{method="GET",path="/panic",status="500"} 1`) {
+		t.Errorf("expected panic to be recorded as status 500 in metrics, got:\n%s", body)
+	}
+	if strings.Contains(body, `path="/panic",status="200"`) {
+		t.Error("panic was incorrectly recorded as status 200 in metrics")
+	}
+}
+
+func TestWrapHandler_ResponseControllerFlush(t *testing.T) {
+	logger = nil
+	initLogger(Config{LogLevel: "info", LogFormat: "json"})
+	metrics = nil
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			t.Errorf("expected Flush to work through middleware chain, got %v", err)
+		}
+	})
+
+	cfg := Config{
+		AppName:        "test-app",
+		LogLevel:       "info",
+		LogFormat:      "json",
+		MetricsEnabled: false,
+	}
+
+	wrapped := wrapHandler(handler, cfg)
+	req := httptest.NewRequest("GET", "/stream", nil)
+	w := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+	if !w.Flushed {
+		t.Error("expected response to be flushed through the chain")
+	}
+}
+
 func TestChainMiddleware_WithRecovery(t *testing.T) {
 	logger = nil
 	initLogger(Config{LogLevel: "info", LogFormat: "json"})

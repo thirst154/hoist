@@ -276,6 +276,27 @@ func TestPublicAddHealthCheck_BeforeInit(t *testing.T) {
 	AddHealthCheck("database", func() error { return nil })
 }
 
+func TestPublicAddHealthCheck_BeforeStartSurvivesInit(t *testing.T) {
+	healthChecker = NewHealthChecker()
+
+	// Register a check before Start()/initHealthChecker() runs, as the
+	// README usage pattern suggests (register in main, then Start).
+	AddHealthCheck("database", func() error { return nil })
+
+	initHealthChecker()
+
+	hc := GetHealthChecker()
+	if hc == nil {
+		t.Fatal("expected health checker to be non-nil after init")
+	}
+	if len(hc.checks) != 1 {
+		t.Errorf("expected pre-registered check to survive init, got %d checks", len(hc.checks))
+	}
+	if _, ok := hc.checks["database"]; !ok {
+		t.Error("expected 'database' check to still be registered after init")
+	}
+}
+
 func TestHandler_CheckReturnsNilError(t *testing.T) {
 	hc := NewHealthChecker()
 	hc.AddHealthCheck("test", func() error { return nil })

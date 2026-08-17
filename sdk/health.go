@@ -11,7 +11,9 @@ type HealthChecker struct {
 	mu     sync.RWMutex
 }
 
-var healthChecker *HealthChecker
+// healthChecker is initialized eagerly so that AddHealthCheck works both
+// before and after Start() is called.
+var healthChecker = NewHealthChecker()
 
 func NewHealthChecker() *HealthChecker {
 	return &HealthChecker{
@@ -65,8 +67,12 @@ func (h *HealthChecker) Handler() http.HandlerFunc {
 	}
 }
 
+// initHealthChecker ensures the package-level healthChecker exists without
+// wiping checks that were registered before Start().
 func initHealthChecker() {
-	healthChecker = NewHealthChecker()
+	if healthChecker == nil {
+		healthChecker = NewHealthChecker()
+	}
 }
 
 func AddHealthCheck(name string, check func() error) {

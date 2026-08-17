@@ -115,7 +115,7 @@ Config precedence: `defaults → env vars → hoist.json → .hoist.local.json`
 ## 🗺️ Roadmap
 
 ### Phase 1: Foundation (Done)
-- **SDK (`hoist/sdk`)**: Complete with 126 tests. Config loading, structured logging, Prometheus metrics, health checks, middleware, and graceful shutdown.
+- **SDK (`hoist/sdk`)**: Complete with 132 tests. Config loading, structured logging, Prometheus metrics, health checks, middleware, and graceful shutdown.
 
 ### Phase 2: Docker-based Daemon
 - **Git server**: Receive source code via git push, trigger builds on push.

@@ -16,6 +16,18 @@ type Config struct {
 	HealthPath     string `json:"health_path"`
 }
 
+// jsonConfig mirrors Config with pointer fields so that JSON file overrides
+// can distinguish "field absent" from "field explicitly set to zero value"
+// (e.g. "metrics_enabled": false).
+type jsonConfig struct {
+	AppName        *string `json:"app_name"`
+	Port           *int    `json:"port"`
+	LogLevel       *string `json:"log_level"`
+	LogFormat      *string `json:"log_format"`
+	MetricsEnabled *bool   `json:"metrics_enabled"`
+	HealthPath     *string `json:"health_path"`
+}
+
 func defaults() Config {
 	return Config{
 		AppName:        "app",
@@ -86,44 +98,44 @@ func applyEnvVars(cfg Config) Config {
 	return cfg
 }
 
-func loadJSONFile(path string) (Config, error) {
+func loadJSONFile(path string) (jsonConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Config{}, nil
+			return jsonConfig{}, nil
 		}
-		return Config{}, err
+		return jsonConfig{}, err
 	}
 
-	var cfg Config
+	var cfg jsonConfig
 	err = json.Unmarshal(data, &cfg)
 	if err != nil {
-		return Config{}, err
+		return jsonConfig{}, err
 	}
 
 	return cfg, nil
 }
 
-func mergeConfigs(base, override Config) Config {
+func mergeConfigs(base Config, override jsonConfig) Config {
 	result := base
 
-	if override.AppName != "" {
-		result.AppName = override.AppName
+	if override.AppName != nil {
+		result.AppName = *override.AppName
 	}
-	if override.Port != 0 {
-		result.Port = override.Port
+	if override.Port != nil {
+		result.Port = *override.Port
 	}
-	if override.LogLevel != "" {
-		result.LogLevel = override.LogLevel
+	if override.LogLevel != nil {
+		result.LogLevel = *override.LogLevel
 	}
-	if override.LogFormat != "" {
-		result.LogFormat = override.LogFormat
+	if override.LogFormat != nil {
+		result.LogFormat = *override.LogFormat
 	}
-	if override.MetricsEnabled {
-		result.MetricsEnabled = override.MetricsEnabled
+	if override.MetricsEnabled != nil {
+		result.MetricsEnabled = *override.MetricsEnabled
 	}
-	if override.HealthPath != "" {
-		result.HealthPath = override.HealthPath
+	if override.HealthPath != nil {
+		result.HealthPath = *override.HealthPath
 	}
 
 	return result

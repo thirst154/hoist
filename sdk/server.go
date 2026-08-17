@@ -3,6 +3,7 @@ package hoist
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -75,9 +76,17 @@ func startServer(handler http.Handler, cfg Config) *http.Server {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Bind synchronously so startup failures (e.g. port already in use)
+	// surface immediately instead of leaving the process hanging while
+	// the daemon polls a /healthz that will never come up.
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		panic(fmt.Sprintf("failed to bind %s: %v", server.Addr, err))
+	}
+
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", zap.Error(err))
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error", zap.Error(err))
 		}
 	}()
 

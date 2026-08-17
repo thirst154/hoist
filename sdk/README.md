@@ -8,13 +8,12 @@ The `hoist/sdk` package is a lightweight runtime wrapper for Go HTTP servers. It
 
 ```
 sdk/
-├── sdk.go          # Start(), main entry point
-├── config.go       # Env var parsing, Config struct
-├── server.go       # HTTP server, graceful shutdown, signal handling
+├── server.go       # Start(), main entry point, HTTP server, graceful shutdown
+├── config.go       # Config struct, env var parsing, hoist.json loading
 ├── health.go       # Health check handler, custom check registration
 ├── metrics.go      # Prometheus metrics, /metrics endpoint
 ├── logging.go      # Structured JSON logger
-├── middleware.go   # Request logging, metrics, recovery middleware
+├── middleware.go   # Request ID, logging, metrics, recovery middleware
 ├── go.mod
 └── README.md
 ```
@@ -28,7 +27,8 @@ package main
 
 import (
     "net/http"
-    "github.com/you/hoist/sdk"
+
+    hoist "github.com/thirst154/hoist/sdk"
 )
 
 func main() {
@@ -143,12 +143,12 @@ On SIGTERM or SIGINT:
 
 ## Middleware Stack
 
-The SDK wraps your handler with these middleware (applied in order):
+The SDK wraps your handler with these middleware (outermost first):
 
-1. **Recovery** - Catches panics, returns 500
-2. **Request ID** - Injects `X-Request-ID` header
+1. **Request ID** - Injects `X-Request-ID` header
+2. **Logging** - Structured JSON logs (method, path, status, duration)
 3. **Metrics** - Collects request metrics
-4. **Logging** - Structured JSON logs (method, path, status, duration)
+4. **Recovery** - Catches panics from your handler, returns 500. Sits directly around your handler so the panic status is recorded correctly in logs and metrics.
 
 ---
 

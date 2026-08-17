@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+func strPtr(s string) *string { return &s }
+func intPtr(i int) *int       { return &i }
+func boolPtr(b bool) *bool    { return &b }
+
 func TestDefaults(t *testing.T) {
 	cfg := defaults()
 
@@ -41,8 +45,8 @@ func TestLoadJSONFile_FileDoesNotExist(t *testing.T) {
 		t.Errorf("expected no error for missing file, got %v", err)
 	}
 
-	if cfg != (Config{}) {
-		t.Errorf("expected empty Config for missing file, got %+v", cfg)
+	if cfg != (jsonConfig{}) {
+		t.Errorf("expected empty jsonConfig for missing file, got %+v", cfg)
 	}
 }
 
@@ -70,28 +74,28 @@ func TestLoadJSONFile_ValidJSON(t *testing.T) {
 		t.Errorf("expected no error, got %v", err)
 	}
 
-	if cfg.AppName != "test-api" {
-		t.Errorf("expected AppName 'test-api', got '%s'", cfg.AppName)
+	if cfg.AppName == nil || *cfg.AppName != "test-api" {
+		t.Errorf("expected AppName 'test-api', got %v", cfg.AppName)
 	}
 
-	if cfg.Port != 3000 {
-		t.Errorf("expected Port 3000, got %d", cfg.Port)
+	if cfg.Port == nil || *cfg.Port != 3000 {
+		t.Errorf("expected Port 3000, got %v", cfg.Port)
 	}
 
-	if cfg.LogLevel != "debug" {
-		t.Errorf("expected LogLevel 'debug', got '%s'", cfg.LogLevel)
+	if cfg.LogLevel == nil || *cfg.LogLevel != "debug" {
+		t.Errorf("expected LogLevel 'debug', got %v", cfg.LogLevel)
 	}
 
-	if cfg.LogFormat != "text" {
-		t.Errorf("expected LogFormat 'text', got '%s'", cfg.LogFormat)
+	if cfg.LogFormat == nil || *cfg.LogFormat != "text" {
+		t.Errorf("expected LogFormat 'text', got %v", cfg.LogFormat)
 	}
 
-	if cfg.MetricsEnabled != false {
+	if cfg.MetricsEnabled == nil || *cfg.MetricsEnabled != false {
 		t.Errorf("expected MetricsEnabled false, got %v", cfg.MetricsEnabled)
 	}
 
-	if cfg.HealthPath != "/health" {
-		t.Errorf("expected HealthPath '/health', got '%s'", cfg.HealthPath)
+	if cfg.HealthPath == nil || *cfg.HealthPath != "/health" {
+		t.Errorf("expected HealthPath '/health', got %v", cfg.HealthPath)
 	}
 }
 
@@ -115,20 +119,20 @@ func TestLoadJSONFile_PartialJSON(t *testing.T) {
 		t.Errorf("expected no error, got %v", err)
 	}
 
-	if cfg.AppName != "partial-api" {
-		t.Errorf("expected AppName 'partial-api', got '%s'", cfg.AppName)
+	if cfg.AppName == nil || *cfg.AppName != "partial-api" {
+		t.Errorf("expected AppName 'partial-api', got %v", cfg.AppName)
 	}
 
-	if cfg.Port != 9000 {
-		t.Errorf("expected Port 9000, got %d", cfg.Port)
+	if cfg.Port == nil || *cfg.Port != 9000 {
+		t.Errorf("expected Port 9000, got %v", cfg.Port)
 	}
 
-	if cfg.LogLevel != "" {
-		t.Errorf("expected LogLevel to be empty, got '%s'", cfg.LogLevel)
+	if cfg.LogLevel != nil {
+		t.Errorf("expected LogLevel to be nil (unset), got %v", *cfg.LogLevel)
 	}
 
-	if cfg.MetricsEnabled != false {
-		t.Errorf("expected MetricsEnabled to be false, got %v", cfg.MetricsEnabled)
+	if cfg.MetricsEnabled != nil {
+		t.Errorf("expected MetricsEnabled to be nil (unset), got %v", *cfg.MetricsEnabled)
 	}
 }
 
@@ -178,7 +182,7 @@ func TestMergeConfigs_EmptyOverride(t *testing.T) {
 		MetricsEnabled: true,
 		HealthPath:     "/healthz",
 	}
-	override := Config{}
+	override := jsonConfig{}
 
 	result := mergeConfigs(base, override)
 
@@ -211,13 +215,13 @@ func TestMergeConfigs_FullOverride(t *testing.T) {
 		MetricsEnabled: false,
 		HealthPath:     "/healthz",
 	}
-	override := Config{
-		AppName:        "override-api",
-		Port:           3000,
-		LogLevel:       "debug",
-		LogFormat:      "text",
-		MetricsEnabled: true,
-		HealthPath:     "/health",
+	override := jsonConfig{
+		AppName:        strPtr("override-api"),
+		Port:           intPtr(3000),
+		LogLevel:       strPtr("debug"),
+		LogFormat:      strPtr("text"),
+		MetricsEnabled: boolPtr(true),
+		HealthPath:     strPtr("/health"),
 	}
 
 	result := mergeConfigs(base, override)
@@ -251,9 +255,9 @@ func TestMergeConfigs_PartialOverride(t *testing.T) {
 		MetricsEnabled: true,
 		HealthPath:     "/healthz",
 	}
-	override := Config{
-		Port:     9000,
-		LogLevel: "debug",
+	override := jsonConfig{
+		Port:     intPtr(9000),
+		LogLevel: strPtr("debug"),
 	}
 
 	result := mergeConfigs(base, override)
@@ -280,7 +284,7 @@ func TestMergeConfigs_PartialOverride(t *testing.T) {
 
 func TestMergeConfigs_BothEmpty(t *testing.T) {
 	base := Config{}
-	override := Config{}
+	override := jsonConfig{}
 
 	result := mergeConfigs(base, override)
 
@@ -291,9 +295,9 @@ func TestMergeConfigs_BothEmpty(t *testing.T) {
 
 func TestMergeConfigs_EmptyBase(t *testing.T) {
 	base := Config{}
-	override := Config{
-		AppName: "override-api",
-		Port:    3000,
+	override := jsonConfig{
+		AppName: strPtr("override-api"),
+		Port:    intPtr(3000),
 	}
 
 	result := mergeConfigs(base, override)
@@ -303,6 +307,34 @@ func TestMergeConfigs_EmptyBase(t *testing.T) {
 	}
 	if result.Port != 3000 {
 		t.Errorf("expected Port 3000, got %d", result.Port)
+	}
+}
+
+func TestMergeConfigs_MetricsDisabledOverride(t *testing.T) {
+	base := Config{
+		AppName:        "base-api",
+		Port:           8080,
+		LogLevel:       "info",
+		LogFormat:      "json",
+		MetricsEnabled: true,
+		HealthPath:     "/healthz",
+	}
+	override := jsonConfig{
+		MetricsEnabled: boolPtr(false),
+	}
+
+	result := mergeConfigs(base, override)
+
+	if result.MetricsEnabled != false {
+		t.Errorf("expected MetricsEnabled false (explicit override beats true base), got %v", result.MetricsEnabled)
+	}
+
+	// Other fields must fall back to base
+	if result.AppName != "base-api" {
+		t.Errorf("expected AppName 'base-api', got '%s'", result.AppName)
+	}
+	if result.Port != 8080 {
+		t.Errorf("expected Port 8080, got %d", result.Port)
 	}
 }
 
@@ -726,6 +758,28 @@ func TestLoadConfig_FullPrecedence(t *testing.T) {
 	}
 	if cfg.LogLevel != "debug" {
 		t.Errorf("expected LogLevel 'debug' (from local, overriding env), got '%s'", cfg.LogLevel)
+	}
+}
+
+func TestLoadConfig_MetricsDisabledViaHoistJSON(t *testing.T) {
+	os.Clearenv()
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	content := `{
+		"metrics_enabled": false
+	}`
+	os.WriteFile("hoist.json", []byte(content), 0644)
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	if cfg.MetricsEnabled != false {
+		t.Errorf("expected MetricsEnabled false from hoist.json (overriding true default), got %v", cfg.MetricsEnabled)
 	}
 }
 

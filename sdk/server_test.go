@@ -1,6 +1,7 @@
 package hoist
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -140,6 +141,7 @@ func TestStartServer_CreatesServer(t *testing.T) {
 	}
 
 	server := startServer(handler, cfg)
+	t.Cleanup(func() { server.Close() })
 
 	if server == nil {
 		t.Fatal("expected server to be non-nil")
@@ -172,6 +174,7 @@ func TestStartServer_DifferentPort(t *testing.T) {
 	}
 
 	server := startServer(handler, cfg)
+	t.Cleanup(func() { server.Close() })
 
 	if server.Addr != ":3000" {
 		t.Errorf("expected addr ':3000', got '%s'", server.Addr)
@@ -422,6 +425,7 @@ func TestStartServer_HandlerIsSet(t *testing.T) {
 	}
 
 	server := startServer(handler, cfg)
+	t.Cleanup(func() { server.Close() })
 
 	if server.Handler == nil {
 		t.Error("expected server handler to be set")
@@ -548,8 +552,35 @@ func TestStartServer_ZeroPort(t *testing.T) {
 	}
 
 	server := startServer(handler, cfg)
+	t.Cleanup(func() { server.Close() })
 
 	if server.Addr != ":0" {
 		t.Errorf("expected addr ':0', got '%s'", server.Addr)
 	}
+}
+
+func TestStartServer_PortInUse(t *testing.T) {
+	// Occupy an ephemeral port
+	occupied, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("failed to occupy port: %v", err)
+	}
+	defer occupied.Close()
+	port := occupied.Addr().(*net.TCPAddr).Port
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	cfg := Config{
+		Port: port,
+	}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected startServer to panic when the port is already in use")
+		}
+	}()
+
+	startServer(handler, cfg)
 }
