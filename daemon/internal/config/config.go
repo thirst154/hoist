@@ -46,7 +46,7 @@ type jsonConfig struct {
 	DefaultMemoryMB  *int     `json:"default_memory_mb"`
 	BuildTimeoutSec  *int     `json:"build_timeout_sec"`
 	HealthTimeoutSec *int     `json:"health_timeout_sec"`
-	FailBuildOnVulns *bool    `json:"fail_build_on_vulns"` 
+	FailBuildOnVulns *bool    `json:"fail_build_on_vulns"`
 	RetainedImages   *int     `json:"retained_images"`
 }
 
